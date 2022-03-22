@@ -1,13 +1,16 @@
 //@ts-check
 import { GameObject, Location } from "./game-object.js";
 import { canvas, ctx } from "../canvas.js";
+import { Game } from "../game.js";
 
 export class Player extends GameObject {
-	constructor(barriers, x, y) {
-		super(32, 32);
-		this.x = x;
-		this.y = y;
-		this.lastLocation = new Location(this.x, this.y);
+	/**
+	 * @param {Game} game
+	 * @param {number} x
+	 * @param {number} y
+	 */
+	constructor(game, x, y) {
+		super(32, 32, x, y);
 		this.fillStyle = "green";
 
 		this.isMovingUp = false;
@@ -18,7 +21,9 @@ export class Player extends GameObject {
 		this.isRunning = false;
 
 		this.baseSpeed = 3;
-		this.barriers = barriers;
+		// this.barriers = game.barriers;
+		this.game = game;
+		this.inventory = [];
 
 		this.wireUpEvents();
 	}
@@ -102,13 +107,37 @@ export class Player extends GameObject {
 			this.y = 0;
 		}
 
-		this.barriers.forEach((b) => {
+		this.game.barriers.forEach((b) => {
+			if (b.isOpen) return;
+
 			let safeLocation = this.isColliding(b);
+
+			if (safeLocation && b.isLocked && this.inventory.length) {
+				this.game.audioPlayer.openDoor();
+				// removes the last key picked up
+				this.inventory.pop();
+				// unlock the door
+				b.isLocked = false;
+				b.isOpen = true;
+				// bail out
+				return;
+			}
+
 			if (safeLocation) {
 				this.x = safeLocation.x;
 				this.y = safeLocation.y;
 			}
 		});
+
+		this.game.keys
+			.filter((k) => !k.isPickedUp)
+			.forEach((k) => {
+				if (this.isColliding(k)) {
+					this.game.audioPlayer.pickupKey();
+					this.inventory.push(k);
+					k.isPickedUp = true;
+				}
+			});
 
 		super.update(elapsedTime);
 	}
